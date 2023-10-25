@@ -85,7 +85,7 @@ class CatalogPage(MainPage):
         self.get_catalog_page().click()
         print("\tOn Catalog page the link to the Catalog page is clicked")
 
-    def set_qty_products_per_page(self): количество отзывов
+    def set_qty_products_per_page(self):
         # Для упрощения, пока устанавливаем 360 товаров на страницу и смотрим-обрабатываем только первую страницу
         self.get_products_perpage().click()
 
