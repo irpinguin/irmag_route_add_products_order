@@ -7,7 +7,7 @@ class TestRouteProductOrder(BaseTest):
 
     # @pytest.mark.smoke
     def test_route_product_order(self):
-        now_date = datetime.datetime.utcnow().strftime("%Y-%m-%d %H-%M-%S")
+        now_date = datetime.datetime.utcnow().strftime("%Y-%m-%d %H:%M:%S")
         print(f"\nStart: {now_date} UTC")
         # print("Open the main page.")
         # self.main_page.page_open()

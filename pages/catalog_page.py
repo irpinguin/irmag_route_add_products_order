@@ -5,6 +5,8 @@ import time
 from selenium.common import NoSuchElementException
 from selenium.webdriver.support import expected_conditions as EC
 from selenium.webdriver.common.by import By
+from selenium.webdriver.support.wait import WebDriverWait
+
 from base.links import Links
 from pages.main_page import MainPage
 
@@ -32,12 +34,13 @@ class CatalogPage(MainPage):
     PAGE_PER_PAGE_360_LOC = '//div[@id="catalog-content"]/div/div[3]/form/select/option[6]'
 
     CATALOG_ITEM_LOC = '//div[@id="catalog-content"]/div[3]/div'
-    # CATALOG_ITEM_PRODUCT_ID_1_LOC = f'{CATALOG_ITEM_LOC}'
     CATALOG_ITEM_PRODUCT_ID_2_LOC = '/div/div[3]/div/a'
-    # CATALOG_ITEM_PRODUCT_NAME_1_LOC = f'{CATALOG_ITEM_LOC}'
     CATALOG_ITEM_PRODUCT_NAME_2_LOC = '/div/div[2]/a'
-    CATALOG_ITEM_PRODUCT_PRICE_LOC = f'{CATALOG_ITEM_PRODUCT_NAME_2_LOC}//span[@class="price"]'
+    CATALOG_ITEM_PRODUCT_PRICE_SPEC_LOC = '//span[@class="price"]'
     CATALOG_ITEM_PRODUCT_SPECIAL_PRICE_SIGN_LOC = '//i[@class="prop-special-price fa fa-fw"]'
+
+    PRODUCT_PAGE_MANUFACTURER_NAME_LOC = '//table[@class="table table-condensed"]/tbody/tr[1]/td/a'
+    PRODUCT_PAGE_COUNTRY_NAME_LOC = '//table[@class="table table-condensed"]/tbody/tr[3]/td/a'
 
     #
     # Getters
@@ -155,13 +158,12 @@ class CatalogPage(MainPage):
         # Возвращает количество
         assert self.get_filter_brand_btn().text == brand_name
 
-        # TODO: проверить, что на отфильтрованной странице верное количество товаров
-        #   проверить, что все товары принадлежат выбранному бренду,
-        #   список полученных товаров как-то сохранить для дальнейшего применения
-
         catalog_items = self.driver.find_elements(By.XPATH, self.CATALOG_ITEM_LOC)
+
+        # TODO Сделать проверку на соответствие количества товаров в фильтре и на странице
         catalog_items_qty = len(catalog_items)
         print(f'catalog_items_qty= {catalog_items_qty}')
+
         products = []
 
         # для каждого элемента каталога
@@ -179,7 +181,6 @@ class CatalogPage(MainPage):
             product['name'] = product_name.text
 
             # получаем признак наличия специальной цены
-            # если есть специальная цена, то данные по цене находятся по другому XPath
             locator = f'{self.CATALOG_ITEM_LOC}[{i + 1}]{self.CATALOG_ITEM_PRODUCT_SPECIAL_PRICE_SIGN_LOC}'
             try:
                 catalog_items[i].find_element(By.XPATH, locator)
@@ -188,28 +189,44 @@ class CatalogPage(MainPage):
                 product_special_price_flag = False
             product['is_special_price'] = product_special_price_flag
 
-            # почему-то этот код выдергивает цену, если товар акционный, то обе цены
-            # и нам надо взять вторую цену, если она есть
-            # или заниматься определением акционный товар или нет
-            # locator = f'{self.CATALOG_ITEM_PRODUCT_ID_1_LOC}[{i + 1}]{self.CATALOG_ITEM_PRODUCT_PRICE_LOC}'
-            # product_price = catalog_items[i].find_element(By.XPATH, locator)
-            # product['price'] = product_price.text
+            # получаем цену
+            # если есть специальная цена, то данные по цене находятся по другому XPath
+            if product_special_price_flag:
+                locator = f'{self.CATALOG_ITEM_LOC}[{i + 1}]{self.CATALOG_ITEM_PRODUCT_PRICE_SPEC_LOC}'
+            else:
+                locator = f'{self.CATALOG_ITEM_LOC}[{i + 1}]{self.CATALOG_ITEM_PRODUCT_ID_2_LOC}'
+            product_price = catalog_items[i].find_element(By.XPATH, locator)
+            product['price'] = product_price.text
 
             products.append(product)
 
-        # for product in products:
-        #     print("Product ID:", product['product_id'])
-        #     print("Name:", product['name'])
-        #     print("Price:", product['price'])
-        #     print()
         print(products)
+        return products
 
+    def get_catalog_items_from_product(self, products):
+        for product in products:
+            # переходим на страницу товара
+            self.driver.get(f"{self.PAGE_URL}/i{product['product_id']}")
+
+            # получаем Наименование производителя
+            product['manufacturer'] = WebDriverWait(self.driver, self.TIMEOUT).until(
+                                        EC.element_to_be_clickable((By.XPATH, self.PRODUCT_PAGE_MANUFACTURER_NAME_LOC))
+                                        ).text
+
+            # получаем Наименование производителя
+            product['country'] = WebDriverWait(self.driver, self.TIMEOUT).until(
+                                        EC.element_to_be_clickable((By.XPATH, self.PRODUCT_PAGE_COUNTRY_NAME_LOC))
+                                        ).text
+            self.driver.back()
+            time.sleep(self.TIMEOUT)
+        print(products)
 
     #
     # Methods
     #
     def filter_brand_route(self):
         self.filter_brand_open()
+        # TODO убрать фиксированный бренд
         # brand_name = self.select_random_brand()
         brand_name = "Old Spice"
         self.filter_brand_select(brand_name)
@@ -217,4 +234,5 @@ class CatalogPage(MainPage):
         filtered_product_qty = self.get_filter_brand_product_qty(brand_name)
         self.filter_brand_apply()
         self.set_qty_products_per_page()
-        self.filter_brand_check(brand_name)
+        # self.filter_brand_check(brand_name)
+        self.get_catalog_items_from_product(self.filter_brand_check(brand_name))

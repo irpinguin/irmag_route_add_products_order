@@ -4,4 +4,4 @@
 /.env
 /utilities/chromedriver-116.0.5845.96.exe
 /tests/.pytest_cache/
-./заметки.txt
+/заметки.txt
