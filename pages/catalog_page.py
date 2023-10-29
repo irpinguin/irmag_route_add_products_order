@@ -1,6 +1,8 @@
 import random
 import re
 import time
+
+from selenium.common import NoSuchElementException
 from selenium.webdriver.support import expected_conditions as EC
 from selenium.webdriver.common.by import By
 from base.links import Links
@@ -35,7 +37,7 @@ class CatalogPage(MainPage):
     # CATALOG_ITEM_PRODUCT_NAME_1_LOC = f'{CATALOG_ITEM_LOC}'
     CATALOG_ITEM_PRODUCT_NAME_2_LOC = '/div/div[2]/a'
     CATALOG_ITEM_PRODUCT_PRICE_LOC = f'{CATALOG_ITEM_PRODUCT_NAME_2_LOC}//span[@class="price"]'
-    CATALOG_ITEM_PRODUCT_SPECIAL_PRICE_SIGN_LOC = '//div[@class="props"]'
+    CATALOG_ITEM_PRODUCT_SPECIAL_PRICE_SIGN_LOC = '//i[@class="prop-special-price fa fa-fw"]'
 
     #
     # Getters
@@ -78,13 +80,13 @@ class CatalogPage(MainPage):
     def get_products_per_page(self):
         return self.wait.until(EC.element_to_be_clickable((By.XPATH, self.PAGE_PER_PAGE_360_LOC)))
 
-    def get_catalog_content(self):
-        # возвращает список элементов
-        elements = self.wait.until(EC.element_to_be_clickable((By.XPATH, self.CATALOG_CONTENT_LOC)))
-        return elements
+    # def get_catalog_content(self):
+    #     # возвращает список элементов
+    #     elements = self.wait.until(EC.element_to_be_clickable((By.XPATH, self.CATALOG_CONTENT_LOC)))
+    #     return elements
 
-    def get_product_special_price_sign(self, locator):
-        return self.wait.until(EC.element_to_be_clickable((By.XPATH, locator)))
+    # def get_product_special_price_sign(self, locator):
+    #     return self.wait.until(EC.element_to_be_clickable((By.XPATH, locator)))
 
     #
     # Actions
@@ -162,24 +164,28 @@ class CatalogPage(MainPage):
         print(f'catalog_items_qty= {catalog_items_qty}')
         products = []
 
+        # для каждого элемента каталога
         for i in range(catalog_items_qty):
             product = {}
 
+            # получаем product_id
             locator = f'{self.CATALOG_ITEM_LOC}[{i + 1}]{self.CATALOG_ITEM_PRODUCT_ID_2_LOC}'
             product_id = catalog_items[i].find_element(By.XPATH, locator).get_attribute("data-element-id")
             product['product_id'] = product_id
 
+            # получаем Наименование товара
             locator = f'{self.CATALOG_ITEM_LOC}[{i + 1}]{self.CATALOG_ITEM_PRODUCT_NAME_2_LOC}'
             product_name = catalog_items[i].find_element(By.XPATH, locator)
             product['name'] = product_name.text
 
+            # получаем признак наличия специальной цены
+            # если есть специальная цена, то данные по цене находятся по другому XPath
             locator = f'{self.CATALOG_ITEM_LOC}[{i + 1}]{self.CATALOG_ITEM_PRODUCT_SPECIAL_PRICE_SIGN_LOC}'
-            product_special_price_sign = catalog_items[i].find_element(By.XPATH, locator)
-            if product_special_price_sign.text == '':
+            try:
+                catalog_items[i].find_element(By.XPATH, locator)
                 product_special_price_flag = True
-            else:
+            except NoSuchElementException:
                 product_special_price_flag = False
-            print(product_special_price_sign.text, product_special_price_flag)
             product['is_special_price'] = product_special_price_flag
 
             # почему-то этот код выдергивает цену, если товар акционный, то обе цены
