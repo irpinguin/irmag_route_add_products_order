@@ -1,18 +1,13 @@
 import random
 import re
 import time
-
 from selenium.webdriver.support import expected_conditions as EC
 from selenium.webdriver.common.by import By
-from selenium.webdriver import ActionChains
-from selenium.webdriver.support.wait import WebDriverWait
-
 from base.links import Links
 from pages.main_page import MainPage
 
 
 class CatalogPage(MainPage):
-
     PAGE_URL = Links.CATALOG_PAGE
     BRANDS_SAMPLE_QTY = 100
 
@@ -32,8 +27,15 @@ class CatalogPage(MainPage):
     FILTER_BRAND_UL = '/following-sibling::div/ul[@class="dropdown-menu inner"]'
     FILTER_BRAND_LI = f'{FILTER_BRAND_BTN_LOC}{FILTER_BRAND_UL}/li[@class="lvl-2"]'
 
-    PAGE_PERPAGE_360_LOC = '//div[@id="catalog-content"]/div/div[3]/form/select/option[6]'
-    CATALOG_CONTENT_LOC = '//div[@id="catalog-content"]/div[3]'
+    PAGE_PER_PAGE_360_LOC = '//div[@id="catalog-content"]/div/div[3]/form/select/option[6]'
+
+    CATALOG_ITEM_LOC = '//div[@id="catalog-content"]/div[3]/div'
+    # CATALOG_ITEM_PRODUCT_ID_1_LOC = f'{CATALOG_ITEM_LOC}'
+    CATALOG_ITEM_PRODUCT_ID_2_LOC = '/div/div[3]/div/a'
+    # CATALOG_ITEM_PRODUCT_NAME_1_LOC = f'{CATALOG_ITEM_LOC}'
+    CATALOG_ITEM_PRODUCT_NAME_2_LOC = '/div/div[2]/a'
+    CATALOG_ITEM_PRODUCT_PRICE_LOC = f'{CATALOG_ITEM_PRODUCT_NAME_2_LOC}//span[@class="price"]'
+    CATALOG_ITEM_PRODUCT_SPECIAL_PRICE_SIGN_LOC = '//div[@class="props"]'
 
     #
     # Getters
@@ -65,7 +67,7 @@ class CatalogPage(MainPage):
         if match:
             product_qty = int(match.group(1))
             if product_qty > 0:
-                print(f"\tProducts selected for the brand '{brand_name}': {product_qty}")
+                print(f"\tNumber of products selected for the brand '{brand_name}': {product_qty}")
             elif product_qty == 0:
                 print(f"\tProducts of the brand {brand_name} are not available for sale.")
         else:
@@ -73,11 +75,17 @@ class CatalogPage(MainPage):
                 f"\tFor the brand {brand_name}, the 'Применить' button does not show the number of selected products.")
         return product_qty
 
-    def get_products_perpage(self):
-        return self.wait.until(EC.element_to_be_clickable((By.XPATH, self.PAGE_PERPAGE_360_LOC)))
+    def get_products_per_page(self):
+        return self.wait.until(EC.element_to_be_clickable((By.XPATH, self.PAGE_PER_PAGE_360_LOC)))
 
     def get_catalog_content(self):
-        return self.wait.until(EC.element_to_be_clickable((By.XPATH, self.CATALOG_CONTENT_LOC)))
+        # возвращает список элементов
+        elements = self.wait.until(EC.element_to_be_clickable((By.XPATH, self.CATALOG_CONTENT_LOC)))
+        return elements
+
+    def get_product_special_price_sign(self, locator):
+        return self.wait.until(EC.element_to_be_clickable((By.XPATH, locator)))
+
     #
     # Actions
     #
@@ -87,7 +95,7 @@ class CatalogPage(MainPage):
 
     def set_qty_products_per_page(self):
         # Для упрощения, пока устанавливаем 360 товаров на страницу и смотрим-обрабатываем только первую страницу
-        self.get_products_perpage().click()
+        self.get_products_per_page().click()
 
     def health_check(self):
         self.assert_page_url()
@@ -125,7 +133,7 @@ class CatalogPage(MainPage):
         brand = self.driver.find_element(By.XPATH, locator)
         # brand_id = brand.get_attribute('data-id')
         brand_name = brand.text
-        print(f"\tFrom the first {self.BRANDS_SAMPLE_QTY} brands, random brand was choosen: {brand_name}.")
+        print(f"\tFrom the first {self.BRANDS_SAMPLE_QTY} brands, random brand was chosen: {brand_name}.")
         return brand_name
 
     def filter_brand_select(self, brand_name):
@@ -145,18 +153,62 @@ class CatalogPage(MainPage):
         # Возвращает количество
         assert self.get_filter_brand_btn().text == brand_name
 
+        # TODO: проверить, что на отфильтрованной странице верное количество товаров
+        #   проверить, что все товары принадлежат выбранному бренду,
+        #   список полученных товаров как-то сохранить для дальнейшего применения
+
+        catalog_items = self.driver.find_elements(By.XPATH, self.CATALOG_ITEM_LOC)
+        catalog_items_qty = len(catalog_items)
+        print(f'catalog_items_qty= {catalog_items_qty}')
+        products = []
+
+        for i in range(catalog_items_qty):
+            product = {}
+
+            locator = f'{self.CATALOG_ITEM_LOC}[{i + 1}]{self.CATALOG_ITEM_PRODUCT_ID_2_LOC}'
+            product_id = catalog_items[i].find_element(By.XPATH, locator).get_attribute("data-element-id")
+            product['product_id'] = product_id
+
+            locator = f'{self.CATALOG_ITEM_LOC}[{i + 1}]{self.CATALOG_ITEM_PRODUCT_NAME_2_LOC}'
+            product_name = catalog_items[i].find_element(By.XPATH, locator)
+            product['name'] = product_name.text
+
+            locator = f'{self.CATALOG_ITEM_LOC}[{i + 1}]{self.CATALOG_ITEM_PRODUCT_SPECIAL_PRICE_SIGN_LOC}'
+            product_special_price_sign = catalog_items[i].find_element(By.XPATH, locator)
+            if product_special_price_sign.text == '':
+                product_special_price_flag = True
+            else:
+                product_special_price_flag = False
+            print(product_special_price_sign.text, product_special_price_flag)
+            product['is_special_price'] = product_special_price_flag
+
+            # почему-то этот код выдергивает цену, если товар акционный, то обе цены
+            # и нам надо взять вторую цену, если она есть
+            # или заниматься определением акционный товар или нет
+            # locator = f'{self.CATALOG_ITEM_PRODUCT_ID_1_LOC}[{i + 1}]{self.CATALOG_ITEM_PRODUCT_PRICE_LOC}'
+            # product_price = catalog_items[i].find_element(By.XPATH, locator)
+            # product['price'] = product_price.text
+
+            products.append(product)
+
+        # for product in products:
+        #     print("Product ID:", product['product_id'])
+        #     print("Name:", product['name'])
+        #     print("Price:", product['price'])
+        #     print()
+        print(products)
+
 
     #
     # Methods
     #
     def filter_brand_route(self):
         self.filter_brand_open()
-        brand_name = self.select_random_brand()
+        # brand_name = self.select_random_brand()
+        brand_name = "Old Spice"
         self.filter_brand_select(brand_name)
         # time.sleep(self.TIMEOUT/2)
         filtered_product_qty = self.get_filter_brand_product_qty(brand_name)
         self.filter_brand_apply()
-        self.filter_brand_check(brand_name)
         self.set_qty_products_per_page()
-
-
+        self.filter_brand_check(brand_name)

@@ -1,4 +1,5 @@
 import pytest
+import datetime
 from base.base_test import BaseTest
 
 
@@ -6,7 +7,8 @@ class TestRouteProductOrder(BaseTest):
 
     # @pytest.mark.smoke
     def test_route_product_order(self):
-        print("\n")
+        now_date = datetime.datetime.utcnow().strftime("%Y-%m-%d %H-%M-%S")
+        print(f"\nStart: {now_date} UTC")
         # print("Open the main page.")
         # self.main_page.page_open()
         # self.main_page.health_check()
