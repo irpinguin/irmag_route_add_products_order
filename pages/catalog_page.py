@@ -265,13 +265,15 @@ class CatalogPage(BasePage):
 
         self.get_catalog_items()
         assert self.get_filter_brand_btn().text == brand_name
-        print("\t- The button displays the name of the expected brand.")
+        print(f"\t- The button displays the name of the expected brand: {brand_name}.")
 
         catalog_items = self.get_catalog_items()
-        print(f'\n{catalog_items}\n')
+        # print(f'\n{catalog_items}\n')
 
-        assert filter_brand_product_qty == len(catalog_items)
-        print("\t- The number of products selected in the brand filter is the same as the number of products in the catalog.")
+        catalog_items_qty = len(catalog_items)
+        assert filter_brand_product_qty == catalog_items_qty
+        print(f"\t- The number of products selected in the brand filter: {filter_brand_product_qty} "
+              f"is the same as the number of products in the catalog: {catalog_items_qty}.")
 
         catalog_items_data_from_product = self.get_catalog_items_data_from_product(catalog_items)
-        print(f'\n{catalog_items_data_from_product}\n')
+        # print(f'\n{catalog_items_data_from_product}\n')

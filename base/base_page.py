@@ -16,7 +16,7 @@ class BasePage(BaseClass):
         get_url = self.driver.current_url
         # print(get_url)
         assert get_url == self.PAGE_URL
-        print(f"\t- The current url matches the expected {self.PAGE_URL}.")
+        print(f"\t- The current url {get_url} matches the expected {self.PAGE_URL}.")
         # except AssertionError:
         #     print(f"\tThe current url not matches the expected {self.PAGE_URL}.")
 
