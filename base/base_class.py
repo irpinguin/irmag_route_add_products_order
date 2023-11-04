@@ -30,3 +30,5 @@ class BaseClass:
             print(f'\t{Fore.RED}The webpage load time: {end_time_sec - start_time_sec:.2f} sec '
                   f'is longer than the expected timeout {timeout_sec} sec{Style.RESET_ALL}.')
         return elapsed_time
+
+
