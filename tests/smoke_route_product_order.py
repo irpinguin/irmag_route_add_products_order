@@ -9,11 +9,11 @@ class TestRouteProductOrder(BaseTest):
     def test_route_product_order(self):
         now_date = datetime.datetime.utcnow().strftime("%Y-%m-%d %H:%M:%S")
         print(f"\nStart: {now_date} UTC")
-        # print("Open the main page.")
+        # print("Open the Main page.")
         # self.main_page.page_open()
         # self.main_page.health_check()
 
-        print("Go to the catalog page.")
+        print("Open the Catalog page.")
         # self.main_page.open_catalog_page()
         self.catalog_page.page_open()
         self.catalog_page.health_check()

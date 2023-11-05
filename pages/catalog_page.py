@@ -215,29 +215,22 @@ class CatalogPage(BasePage):
         expected_url = f"{Links.CATALOG_PAGE}i{product_id}/"
         assert get_url == expected_url
 
+        # получаем данные о свойствах товара
         product['product_id'] = product_id
-        product['name'] = self.wait.until(EC.element_to_be_clickable
-                                          ((By.XPATH, PRODUCT_NAME_LOC))).text
-        product['manufacturer'] = self.wait.until(EC.element_to_be_clickable
-                                                  ((By.XPATH, MANUFACTURER_NAME_LOC))).text
-        product['brand'] = self.wait.until(EC.element_to_be_clickable
-                                           ((By.XPATH, BRAND_NAME_LOC))).text
-        # product['is_special_price'] = product_special_price_flag
-        product['country'] = self.wait.until(EC.element_to_be_clickable
-                                             ((By.XPATH, COUNTRY_NAME_LOC))).text
-        product['color'] = self.wait.until(EC.visibility_of_element_located
-                                           ((By.XPATH, COLOR_NAME_LOC))).accessible_name
+        product['name'] = self.wait.until(EC.element_to_be_clickable((By.XPATH, PRODUCT_NAME_LOC))).text
+        product['manufacturer'] = self.wait.until(EC.element_to_be_clickable((By.XPATH, MANUFACTURER_NAME_LOC))).text
+        product['brand'] = self.wait.until(EC.element_to_be_clickable((By.XPATH, BRAND_NAME_LOC))).text
         # элемент присутствует на странице товара только если товар участвует в акции и у него есть спеццена
         try:
             action_sign = self.wait.until(EC.visibility_of_element_located((By.XPATH, ACTION_SIGN_LOC))).text
-            print(f"action_sign = {action_sign}")
             if ACTION_TEXT in action_sign:
                 product['is_special_price'] = True
-                print(f"is special_price = {product['is_special_price']}")
         except TimeoutException:
             product['is_special_price'] = False
-            print(f"is special_price = {product['is_special_price']}")
 
+        product['country'] = self.wait.until(EC.element_to_be_clickable((By.XPATH, COUNTRY_NAME_LOC))).text
+        product['color'] = self.wait.until(EC.visibility_of_element_located((By.XPATH, COLOR_NAME_LOC))).accessible_name
+        product['price'] = self.wait.until(EC.element_to_be_clickable((By.XPATH, PRICE_LOC))).text
 
         return product
 
@@ -257,15 +250,28 @@ class CatalogPage(BasePage):
             # time.sleep(self.TIMEOUT/2)
         return products_from_product_pages
 
+    def clear_filter(self):
+        # TODO: проверить, что фильтр установлен, если да, то найти Сброс фильтра и его нажать
+        #    проверить, что фильтр сброшен
+        pass
+
+    def set_sorting_novelty(self):
+        pass
+
+    def set_sorting_popularity(self):
+        pass
+
     #
     # Methods
     #
     def health_check(self):
+        print("Verifying that the Catalog page is opened correctly.")
         self.assert_page_url()
         self.assert_sign("Verifying that the Catalog page is open",
                          self.get_catalog_page_sign(), self.CATALOG_SIGN_VAL)
 
     def filter_brand_route(self):
+        print("Verify that the brand filter in the catalog is working correctly.")
         self.filter_brand_open()
         # TODO убрать фиксированный бренд
         # brand_name = self.select_random_brand()
@@ -282,12 +288,12 @@ class CatalogPage(BasePage):
         print(f"\t- The button displays the name of the expected brand: {brand_name}.")
 
         catalog_content_items = self.get_catalog_content_items()
-        print(f'\ncatalog_content_items:\n{catalog_content_items}\n')
+        # print(f'\ncatalog_content_items:\n{catalog_content_items}\n')
 
-        # в содержании каталога есть не вся информация о товаре, поэтому для каждого представленного товара
-        # ходим на страницу товара и получаем полные данные
+        # в содержании каталога есть не вся информация о товаре, поэтому
+        # для каждого представленного товара ходим на страницу товара и там получаем полные данные
         catalog_content_items_data_from_product = self.get_catalog_content_items_data_from_product(catalog_content_items)
-        print(f'\ncatalog_content_items_data_from_product:\n{catalog_content_items_data_from_product}\n')
+        # print(f'\ncatalog_content_items_data_from_product:\n{catalog_content_items_data_from_product}\n')
 
         # проверяем, что количество отобранных товаров совпадает со значением, которое было на кнопке "Применить"
         catalog_content_items_qty = len(catalog_content_items)
@@ -300,7 +306,7 @@ class CatalogPage(BasePage):
             assert product['brand'] == brand_name
         print(f'\t- In the content of the filtered catalog, there are only products of the selected brand: {brand_name}')
 
-        # проверяем, что количество товаров со спецценой одинаково на странице товаров и по данным со страниц товаров
+        # проверяем, что количество товаров со спецценой одинаковое на странице товаров и по данным со страниц товаров
         catalog_content_items_with_special_price = 0
         catalog_content_items_data_from_product_with_special_price = 0
 
@@ -311,10 +317,16 @@ class CatalogPage(BasePage):
             if product['is_special_price']:
                 catalog_content_items_data_from_product_with_special_price += 1
         assert catalog_content_items_with_special_price == catalog_content_items_data_from_product_with_special_price
-        print(f"\t- The number of products with a special price is the same "
-              f"on the product page: {catalog_content_items_with_special_price}"
-              f" and according to the data "
-              f"from the product pages: {catalog_content_items_data_from_product_with_special_price}")
+        print(f"\t- The number of products with a special price is the same on the product page: "
+              f"{catalog_content_items_with_special_price} and according to the data from the product pages: "
+              f"{catalog_content_items_data_from_product_with_special_price}")
 
         # проверяем, что цены для товаров одинаковы на странице каталога и на странице продукта
-        #
+        diff = []
+        for catalog_content_product, product_from_page in zip(
+                catalog_content_items, catalog_content_items_data_from_product):
+            if catalog_content_product['price'] != product_from_page['price']:
+                diff.append(f"Difference in price for the product {catalog_content_product['name']}: "
+                            f"{catalog_content_product['price']} != {product_from_page['price']}")
+        assert not diff, f"The following price differences were found:\n{', '.join(diff)}"
+        print("\t- For all items in the filtered catalog, the price is the same as the price on the product page.")
