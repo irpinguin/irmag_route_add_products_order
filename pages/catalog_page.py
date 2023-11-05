@@ -2,7 +2,7 @@ import random
 import re
 import time
 
-from selenium.common import NoSuchElementException
+from selenium.common import NoSuchElementException, TimeoutException
 from selenium.webdriver.support import expected_conditions as EC
 from selenium.webdriver.common.by import By
 
@@ -79,8 +79,8 @@ class CatalogPage(BasePage):
                 print(f"\t- Products of the brand {brand_name} are not available for sale.")
         else:
             product_qty = None
-            print(
-                f"\t- For the brand {brand_name}, the 'Применить' button does not show the number of selected products.")
+            print(f"\t- For the brand {brand_name}, the 'Применить' button does not show the number "
+                  f"of selected products.")
         return product_qty
 
     def get_products_per_page(self):
@@ -91,8 +91,7 @@ class CatalogPage(BasePage):
         btn_state = btn.get_attribute('aria-pressed')
         if btn_state == "false":
             return False
-        else:
-            return True
+        return True
 
     def get_catalog_item_special_price_flag(self, catalog_item_element, catalog_item_locator):
         # получаем признак наличия специальной цены
@@ -103,7 +102,7 @@ class CatalogPage(BasePage):
             product_special_price_flag = False
         return product_special_price_flag
 
-    def get_catalog_items(self):
+    def get_catalog_content_items(self):
 
         products = []
 
@@ -200,10 +199,13 @@ class CatalogPage(BasePage):
     def get_data_from_product_page(self, product_id):
 
         PRODUCT_NAME_LOC = '//h1'
-        MANUFACTURER_NAME_LOC = '//table[@class="table table-condensed"]/tbody/tr[1]/td/a'
-        BRAND_NAME_LOC = '//table[@class="table table-condensed"]/tbody/tr[2]/td/a'
-        COUNTRY_NAME_LOC = '//table[@class="table table-condensed"]/tbody/tr[3]/td/a'
-        COLOR_NAME_LOC = '//table[@class="table table-condensed"]/tbody/tr[4]//input[@class="package-color"]'
+        TABLE_LOC = '//table[@class="table table-condensed"]'
+        MANUFACTURER_NAME_LOC = f'{TABLE_LOC}/tbody/tr[1]/td/a'
+        BRAND_NAME_LOC = f'{TABLE_LOC}/tbody/tr[2]/td/a'
+        COUNTRY_NAME_LOC = f'{TABLE_LOC}/tbody/tr[3]/td/a'
+        COLOR_NAME_LOC = f'{TABLE_LOC}/tbody/tr[4]//input[@class="package-color"]'
+        ACTION_SIGN_LOC = '//div[@class="element-actions alert alert-warning mb-0 mt-20"]/div'
+        ACTION_TEXT = "Этот товар участвует в акци"
         PRICE_LOC = '//div[@class="panel-body text-center"]/div/span'
 
         product = {}
@@ -225,12 +227,23 @@ class CatalogPage(BasePage):
                                              ((By.XPATH, COUNTRY_NAME_LOC))).text
         product['color'] = self.wait.until(EC.visibility_of_element_located
                                            ((By.XPATH, COLOR_NAME_LOC))).accessible_name
+        # элемент присутствует на странице товара только если товар участвует в акции и у него есть спеццена
+        try:
+            action_sign = self.wait.until(EC.visibility_of_element_located((By.XPATH, ACTION_SIGN_LOC))).text
+            print(f"action_sign = {action_sign}")
+            if ACTION_TEXT in action_sign:
+                product['is_special_price'] = True
+                print(f"is special_price = {product['is_special_price']}")
+        except TimeoutException:
+            product['is_special_price'] = False
+            print(f"is special_price = {product['is_special_price']}")
+
+
         return product
 
-    def get_catalog_items_data_from_product(self, products):
+    def get_catalog_content_items_data_from_product(self, products):
         i = 0
-
-        # print(f'list "products" from get_catalog_items_data_from_product":\n{products}\n')
+        products_from_product_pages = []
         # time.sleep(self.TIMEOUT)
 
         for i in range(len(products)):
@@ -239,10 +252,10 @@ class CatalogPage(BasePage):
             # time.sleep(self.TIMEOUT)
             product = self.get_data_from_product_page(products[i]['product_id'])
             # print(f'{i+1}. product data: {product}')
-            products.append(product)
+            products_from_product_pages.append(product)
             self.driver.back()
             # time.sleep(self.TIMEOUT/2)
-        return products
+        return products_from_product_pages
 
     #
     # Methods
@@ -259,21 +272,49 @@ class CatalogPage(BasePage):
         brand_name = "Old Spice"
         self.filter_brand_select(brand_name)
         # после выбора бренда и до применения фильтра на кнопке "Применить" отображается количество товаров в фильтре
+        # после того, как фильтр применили, количество товаров на кнопке "Применить" уже не отображается
         filter_brand_product_qty = self.get_filter_brand_product_qty(brand_name)
         self.filter_brand_apply()
         self.set_qty_products_per_page()
 
-        self.get_catalog_items()
+        # self.get_catalog_content_items()
         assert self.get_filter_brand_btn().text == brand_name
         print(f"\t- The button displays the name of the expected brand: {brand_name}.")
 
-        catalog_items = self.get_catalog_items()
-        # print(f'\n{catalog_items}\n')
+        catalog_content_items = self.get_catalog_content_items()
+        print(f'\ncatalog_content_items:\n{catalog_content_items}\n')
 
-        catalog_items_qty = len(catalog_items)
-        assert filter_brand_product_qty == catalog_items_qty
+        # в содержании каталога есть не вся информация о товаре, поэтому для каждого представленного товара
+        # ходим на страницу товара и получаем полные данные
+        catalog_content_items_data_from_product = self.get_catalog_content_items_data_from_product(catalog_content_items)
+        print(f'\ncatalog_content_items_data_from_product:\n{catalog_content_items_data_from_product}\n')
+
+        # проверяем, что количество отобранных товаров совпадает со значением, которое было на кнопке "Применить"
+        catalog_content_items_qty = len(catalog_content_items)
+        assert filter_brand_product_qty == catalog_content_items_qty
         print(f"\t- The number of products selected in the brand filter: {filter_brand_product_qty} "
-              f"is the same as the number of products in the catalog: {catalog_items_qty}.")
+              f"is the same as the number of products in the catalog content: {catalog_content_items_qty}.")
 
-        catalog_items_data_from_product = self.get_catalog_items_data_from_product(catalog_items)
-        # print(f'\n{catalog_items_data_from_product}\n')
+        # проверяем, что в содержимом отфильтрованного каталога нет товаров других брендов
+        for product in catalog_content_items_data_from_product:
+            assert product['brand'] == brand_name
+        print(f'\t- In the content of the filtered catalog, there are only products of the selected brand: {brand_name}')
+
+        # проверяем, что количество товаров со спецценой одинаково на странице товаров и по данным со страниц товаров
+        catalog_content_items_with_special_price = 0
+        catalog_content_items_data_from_product_with_special_price = 0
+
+        for product in catalog_content_items:
+            if product['is_special_price']:
+                catalog_content_items_with_special_price += 1
+        for product in catalog_content_items_data_from_product:
+            if product['is_special_price']:
+                catalog_content_items_data_from_product_with_special_price += 1
+        assert catalog_content_items_with_special_price == catalog_content_items_data_from_product_with_special_price
+        print(f"\t- The number of products with a special price is the same "
+              f"on the product page: {catalog_content_items_with_special_price}"
+              f" and according to the data "
+              f"from the product pages: {catalog_content_items_data_from_product_with_special_price}")
+
+        # проверяем, что цены для товаров одинаковы на странице каталога и на странице продукта
+        #
