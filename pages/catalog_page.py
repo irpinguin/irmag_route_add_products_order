@@ -1,6 +1,7 @@
 import random
 import re
 import time
+from tqdm import tqdm
 
 from selenium.common import NoSuchElementException, TimeoutException
 from selenium.webdriver.support import expected_conditions as EC
@@ -10,10 +11,11 @@ from base.links import Links
 from base.base_page import BasePage
 
 
-# from pages.product_page import ProductPage
+from pages.product_page import ProductPage
 
 
 class CatalogPage(BasePage):
+
     PAGE_URL = Links.CATALOG_PAGE
     BRANDS_SAMPLE_QTY = 100
 
@@ -43,9 +45,6 @@ class CatalogPage(BasePage):
     CATALOG_ITEM_PRODUCT_NAME_2_LOC = '/div/div[2]/a'
     CATALOG_ITEM_PRODUCT_PRICE_SPEC_LOC = '//span[@class="price"]'
     CATALOG_ITEM_PRODUCT_SPECIAL_PRICE_SIGN_LOC = '//i[@class="prop-special-price fa fa-fw"]'
-
-    PRODUCT_PAGE_MANUFACTURER_NAME_LOC = '//table[@class="table table-condensed"]/tbody/tr[1]/td/a'
-    PRODUCT_PAGE_COUNTRY_NAME_LOC = '//table[@class="table table-condensed"]/tbody/tr[3]/td/a'
 
     #
     # Getters
@@ -114,12 +113,81 @@ class CatalogPage(BasePage):
         # получаем признак наличия специальной цены
         try:
             catalog_item_element.find_element(By.XPATH, catalog_item_locator)
-            product_special_price_flag = True
+            return True
         except NoSuchElementException:
-            product_special_price_flag = False
-        return product_special_price_flag
+            return False
 
-    def get_catalog_content_items(self):
+    #
+    # Actions
+    #
+    def open_catalog_page(self):
+        self.get_catalog_page().click()
+        print("\tOn Catalog page the link to the Catalog page is clicked")
+
+    def set_qty_products_per_page(self):
+        # Для упрощения, пока устанавливаем 360 товаров на страницу и смотрим-обрабатываем только первую страницу
+        self.get_products_per_page().click()
+
+    def filter_open(self):
+        filter_state = self.get_filter_state()
+        if filter_state:
+            print("\tThe filter is already open.")
+        else:
+            self.get_filter_btn().click()
+            print("\tOn Catalog page the open filter button is clicked.")
+        # TODO: разобраться с ожиданием: после того как кликнули почему то надо дать время прогрузиться?
+        time.sleep(self.TIMEOUT)
+        sign = self.get_filter_sign()
+        self.assert_sign("Verifying that the filter is open", sign, self.FILTER_SIGN_VAL)
+
+    def filter_brand_reset(self):
+        # сбрасывается фильтр по бренду, но заголовок "Используется фильтрация" остается
+        if self.get_filter_brand_btn_text():
+            self.get_filter_brand_clear().click()
+        print("The filter Brand has been reset.")
+
+    def filter_reset(self):
+        # TODO: спросить, что делать в случаях, когда сталкиваемся с перехватчиком (может это влияние таймаута?)
+        # на странице действует перехватчик, поэтому элемент '//a[@class="btn btn-danger btn-xs"]' не кликабелен
+        # element click intercepted: Element <a href="/cat/" class="btn btn-danger btn-xs">...</a> is not
+        # clickable at point (317, 63). Other element would receive the click:
+        # <div class="block-2 col-xs-12 col-sm-8 col-sm-push-1 col-md-8 col-md-push-2 pt-15 pb-15">...</div>
+        # Сейчас сброс фильтра через переоткрытие страницы по новой, что собственно и сделано по локатору
+
+        filter_state = self.get_filter_usage_state()
+        if filter_state:
+            self.driver.get(self.PAGE_URL)
+        print("The filter has been reset.")
+
+    def filter_brand_open(self):
+        self.get_filter_brand_btn().click()
+        print("\tFilter Brand button is clicked.")
+
+        # assert
+        print("\t- Verifying that the filter Brand is open: ", end='')
+        assert self.get_filter_brand_search_fld().get_attribute('placeholder') == self.FILTER_BRAND_SIGN_VAL
+        print("OK.")
+
+    def select_random_brand(self):
+        locator = f'{self.FILTER_BRAND_LI}[{random.randint(1, self.BRANDS_SAMPLE_QTY + 1)}]/a'
+        brand = self.driver.find_element(By.XPATH, locator)
+        # brand_id = brand.get_attribute('data-id')
+        brand_name = brand.text
+        print(f"\tFrom the first {self.BRANDS_SAMPLE_QTY} brands, random brand was chosen: {brand_name}.")
+        return brand_name
+
+    def filter_brand_select(self, brand_name):
+        locator = f'{self.FILTER_BRAND_LI}/a[text()="{brand_name}"]'
+        self.get_filter_brand_search_fld().send_keys(brand_name)
+        element = self.driver.find_element(By.XPATH, locator)
+        element.click()
+        print(f"\tBrand filter applied: {brand_name}.")
+
+    def filter_brand_apply(self):
+        self.get_filter_apply_btn().click()
+        print("\tThe 'Применить' button is clicked.")
+
+    def collect_catalog_content_items(self):
 
         products = []
 
@@ -156,134 +224,19 @@ class CatalogPage(BasePage):
 
         return products
 
-    #
-    # Actions
-    #
-    def open_catalog_page(self):
-        self.get_catalog_page().click()
-        print("\tOn Catalog page the link to the Catalog page is clicked")
-
-    def set_qty_products_per_page(self):
-        # Для упрощения, пока устанавливаем 360 товаров на страницу и смотрим-обрабатываем только первую страницу
-        self.get_products_per_page().click()
-
-    def filter_open(self):
-        filter_state = self.get_filter_state()
-        if filter_state:
-            print("\tThe filter is already open.")
-        else:
-            self.get_filter_btn().click()
-            print("\tOn Catalog page the open filter button is clicked.")
-        # TODO: разобраться с ожиданием
-        time.sleep(self.TIMEOUT)
-        sign = self.get_filter_sign()
-        self.assert_sign("Verifying that the filter is open", sign, self.FILTER_SIGN_VAL)
-
-    def filter_brand_reset(self):
-        # сбрасывается фильтр по бренду, но заголовок "Используется фильтрация" остается
-        if self.get_filter_brand_btn_text():
-            self.get_filter_brand_clear().click()
-        print("The filter Brand has been reset.")
-
-    def filter_reset(self):
-        # TODO: спросить, что делать в таких случаях
-        # на странице действует перехватчик, поэтому элемент '//a[@class="btn btn-danger btn-xs"]' не кликабелен
-        # element click intercepted: Element <a href="/cat/" class="btn btn-danger btn-xs">...</a> is not
-        # clickable at point (317, 63). Other element would receive the click:
-        # <div class="block-2 col-xs-12 col-sm-8 col-sm-push-1 col-md-8 col-md-push-2 pt-15 pb-15">...</div>
-        # Сейчас сброс фильтра через переоткрытие страницы по новой, что собственно и сделано по локатору
-
-        filter_state = self.get_filter_usage_state()
-        if filter_state:
-            self.driver.get(self.PAGE_URL)
-        print("The filter has been reset.")
-
-    def filter_brand_open(self):
-        self.get_filter_brand_btn().click()
-        print("\tFilter Brand button is clicked.")
-
-        # assert
-        print("\t- Verifying that the filter Brand is open: ", end='')
-        assert self.get_filter_brand_search_fld().get_attribute('placeholder') == self.FILTER_BRAND_SIGN_VAL
-        print("OK.")
-
-    def select_random_brand(self):
-        locator = f'{self.FILTER_BRAND_LI}[{random.randint(1, self.BRANDS_SAMPLE_QTY + 1)}]/a'
-        brand = self.driver.find_element(By.XPATH, locator)
-        # brand_id = brand.get_attribute('data-id')
-        brand_name = brand.text
-        print(f"\tFrom the first {self.BRANDS_SAMPLE_QTY} brands, random brand was chosen: {brand_name}.")
-        return brand_name
-
-    def filter_brand_select(self, brand_name):
-        locator = f'{self.FILTER_BRAND_LI}/a[text()="{brand_name}"]'
-        self.get_filter_brand_search_fld().send_keys(brand_name)
-        # time.sleep(self.TIMEOUT)
-        element = self.driver.find_element(By.XPATH, locator)
-        # time.sleep(self.TIMEOUT)
-        element.click()
-        print(f"\tBrand filter applied: {brand_name}.")
-
-    def filter_brand_apply(self):
-        self.get_filter_apply_btn().click()
-        print("\tThe 'Применить' button is clicked.")
-
-    # TODO: как можно получать сюда данные, которые собираются в другом классе
-    #   для каждого вебэлемента надо выдернуть ид продукта и передать его в класс страницы продукта,
-    #   и получить обратно словарь значений свойств товара
-    #   неплохо также где-то список этих словарей хранить для последующего использования
-    def get_data_from_product_page(self, product_id):
-
-        PRODUCT_NAME_LOC = '//h1'
-        TABLE_LOC = '//table[@class="table table-condensed"]'
-        MANUFACTURER_NAME_LOC = f'{TABLE_LOC}/tbody/tr[1]/td/a'
-        BRAND_NAME_LOC = f'{TABLE_LOC}/tbody/tr[2]/td/a'
-        COUNTRY_NAME_LOC = f'{TABLE_LOC}/tbody/tr[3]/td/a'
-        COLOR_NAME_LOC = f'{TABLE_LOC}/tbody/tr[4]//input[@class="package-color"]'
-        ACTION_SIGN_LOC = '//div[@class="element-actions alert alert-warning mb-0 mt-20"]/div'
-        ACTION_TEXT = "Этот товар участвует в акци"
-        PRICE_LOC = '//div[@class="panel-body text-center"]/div/span'
-
-        product = {}
-
-        # проверяем, что находимся на странице нужного товара
-        get_url = self.driver.current_url
-        expected_url = f"{Links.CATALOG_PAGE}i{product_id}/"
-        assert get_url == expected_url
-
-        # получаем данные о свойствах товара
-        product['product_id'] = product_id
-        product['name'] = self.wait.until(EC.element_to_be_clickable((By.XPATH, PRODUCT_NAME_LOC))).text
-        product['manufacturer'] = self.wait.until(EC.element_to_be_clickable((By.XPATH, MANUFACTURER_NAME_LOC))).text
-        product['brand'] = self.wait.until(EC.element_to_be_clickable((By.XPATH, BRAND_NAME_LOC))).text
-        # элемент присутствует на странице товара только если товар участвует в акции и у него есть спеццена
-        try:
-            action_sign = self.wait.until(EC.visibility_of_element_located((By.XPATH, ACTION_SIGN_LOC))).text
-            if ACTION_TEXT in action_sign:
-                product['is_special_price'] = True
-        except TimeoutException:
-            product['is_special_price'] = False
-
-        product['country'] = self.wait.until(EC.element_to_be_clickable((By.XPATH, COUNTRY_NAME_LOC))).text
-        product['color'] = self.wait.until(EC.visibility_of_element_located((By.XPATH, COLOR_NAME_LOC))).accessible_name
-        product['price'] = self.wait.until(EC.element_to_be_clickable((By.XPATH, PRICE_LOC))).text
-
-        return product
-
-    def get_catalog_content_items_data_from_product(self, products):
+    def collect_catalog_content_items_data_from_product(self, products):
         i = 0
         products_from_product_pages = []
-        # time.sleep(self.TIMEOUT)
-
-        for i in range(len(products)):
-            # переходим на страницу товара
-            self.driver.get(f"{self.PAGE_URL}i{products[i]['product_id']}")
-            # time.sleep(self.TIMEOUT)
-            product = self.get_data_from_product_page(products[i]['product_id'])
-            # print(f'{i+1}. product data: {product}')
-            products_from_product_pages.append(product)
+        progress_bar = tqdm(products,
+                            desc='\tCollecting data from product pages',
+                            unit='product',
+                            ncols=80)
+        for product in progress_bar:
+            product_page = ProductPage(self.driver, product['product_id'])
+            product_data = product_page.collect_product_properties(product['product_id'])
+            products_from_product_pages.append(product_data)
             self.driver.back()
-            # time.sleep(self.TIMEOUT/2)
+
         return products_from_product_pages
 
     def set_sorting_novelty(self):
@@ -318,12 +271,14 @@ class CatalogPage(BasePage):
         assert self.get_filter_brand_btn().text == brand_name
         print(f"\t- The button displays the name of the expected brand: {brand_name}.")
 
-        catalog_content_items = self.get_catalog_content_items()
+        catalog_content_items = self.collect_catalog_content_items()
         # print(f'\ncatalog_content_items:\n{catalog_content_items}\n')
 
         # в содержании каталога есть не вся информация о товаре, поэтому
         # для каждого представленного товара ходим на страницу товара и там получаем полные данные
-        catalog_content_items_data_from_product = self.get_catalog_content_items_data_from_product(catalog_content_items)
+        print("\tGet data about each product from the product page:")
+        catalog_content_items_data_from_product = self.collect_catalog_content_items_data_from_product(catalog_content_items)
+
         # print(f'\ncatalog_content_items_data_from_product:\n{catalog_content_items_data_from_product}\n')
 
         # проверяем, что количество отобранных товаров совпадает со значением, которое было на кнопке "Применить"
