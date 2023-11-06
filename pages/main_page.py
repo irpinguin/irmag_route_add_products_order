@@ -27,6 +27,7 @@ class MainPage(BasePage):
 
     # Methods
     def health_check(self):
+        print("Verifying that the Main page is opened correctly.")
         self.assert_page_url()
         self.assert_sign("Verifying that the Main page is open",
                          self.get_main_page_sign(), self.MAIN_PAGE_SIGN_VAL)

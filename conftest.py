@@ -1,4 +1,4 @@
-# Причина, по которой в pycharm runner может  не передается фикстура
+# Причина, по которой в pycharm runner может не передается фикстура
 # https://intellij-support.jetbrains.com/hc/en-us/community/posts/12897247432338-PyCharm-unable-to-find-fixtures-in-conftest-py
 #
 import pytest
