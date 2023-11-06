@@ -1,6 +1,8 @@
-import pytest
+import time
+
 import datetime
 from base.base_test import BaseTest
+from base.data import Data
 
 
 class TestRouteProductOrder(BaseTest):
@@ -19,3 +21,5 @@ class TestRouteProductOrder(BaseTest):
         self.catalog_page.health_check()
         self.catalog_page.filter_open()
         self.catalog_page.filter_brand_route()
+        self.catalog_page.filter_brand_reset()
+        # self.catalog_page.filter_reset()

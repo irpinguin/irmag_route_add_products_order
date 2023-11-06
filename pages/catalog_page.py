@@ -25,6 +25,8 @@ class CatalogPage(BasePage):
     FILTER_SIGN_LOC = FILTER_BTN_LOC
     FILTER_SIGN_VAL = 'Закрыть фильтр'
     FILTER_APPLY_BTN_LOC = '//button[@class="btn-block btn-success btn do-filter"]'
+    FILTER_USAGE_SIGN_LOC = '//div[@class="alert alert-success"]'
+    # FILTER_CLEAR_LOC = '//a[@class="btn btn-danger btn-xs"]'
 
     FILTER_BRAND_BTN_LOC = '//button[@id="dropdown-filter_manufacturer_and_brands_select"]'
     FILTER_BRAND_SEARCH_FLD_LOC = f'{FILTER_BRAND_BTN_LOC}/following-sibling::div/div/input'
@@ -32,6 +34,7 @@ class CatalogPage(BasePage):
     FILTER_BRAND_SIGN_VAL = 'Поиск'
     FILTER_BRAND_UL = '/following-sibling::div/ul[@class="dropdown-menu inner"]'
     FILTER_BRAND_LI = f'{FILTER_BRAND_BTN_LOC}{FILTER_BRAND_UL}/li[@class="lvl-2"]'
+    FILTER_BRAND_CLEAR_LOC = '//a[@class="reset-selected pull-right"]'
 
     PAGE_PER_PAGE_360_LOC = '//div[@id="catalog-content"]/div/div[3]/form/select/option[6]'
 
@@ -62,11 +65,17 @@ class CatalogPage(BasePage):
     def get_filter_apply_btn(self):
         return self.wait.until(EC.element_to_be_clickable((By.XPATH, self.FILTER_APPLY_BTN_LOC)))
 
+    def get_filter_brand_clear(self):
+        return self.wait.until(EC.element_to_be_clickable((By.XPATH, self.FILTER_BRAND_CLEAR_LOC)))
+
     def get_filter_brand_btn(self):
         return self.wait.until(EC.element_to_be_clickable((By.XPATH, self.FILTER_BRAND_BTN_LOC)))
 
     def get_filter_brand_search_fld(self):
         return self.wait.until(EC.element_to_be_clickable((By.XPATH, self.FILTER_BRAND_SEARCH_FLD_LOC)))
+
+    def get_filter_brand_btn_text(self):
+        return self.wait.until(EC.element_to_be_clickable((By.XPATH, self.FILTER_BRAND_BTN_LOC))).text
 
     def get_filter_brand_product_qty(self, brand_name):
         btn = self.get_filter_apply_btn()
@@ -92,6 +101,14 @@ class CatalogPage(BasePage):
         if btn_state == "false":
             return False
         return True
+
+    def get_filter_usage_state(self):
+        try:
+            self.driver.find_element(By.XPATH, self.FILTER_USAGE_SIGN_LOC)
+            return True
+        except NoSuchElementException:
+            print("Filter usage sign not found")
+            return False
 
     def get_catalog_item_special_price_flag(self, catalog_item_element, catalog_item_locator):
         # получаем признак наличия специальной цены
@@ -151,8 +168,8 @@ class CatalogPage(BasePage):
         self.get_products_per_page().click()
 
     def filter_open(self):
-        filter_status = self.get_filter_state()
-        if filter_status:
+        filter_state = self.get_filter_state()
+        if filter_state:
             print("\tThe filter is already open.")
         else:
             self.get_filter_btn().click()
@@ -161,6 +178,25 @@ class CatalogPage(BasePage):
         time.sleep(self.TIMEOUT)
         sign = self.get_filter_sign()
         self.assert_sign("Verifying that the filter is open", sign, self.FILTER_SIGN_VAL)
+
+    def filter_brand_reset(self):
+        # сбрасывается фильтр по бренду, но заголовок "Используется фильтрация" остается
+        if self.get_filter_brand_btn_text():
+            self.get_filter_brand_clear().click()
+        print("The filter Brand has been reset.")
+
+    def filter_reset(self):
+        # TODO: спросить, что делать в таких случаях
+        # на странице действует перехватчик, поэтому элемент '//a[@class="btn btn-danger btn-xs"]' не кликабелен
+        # element click intercepted: Element <a href="/cat/" class="btn btn-danger btn-xs">...</a> is not
+        # clickable at point (317, 63). Other element would receive the click:
+        # <div class="block-2 col-xs-12 col-sm-8 col-sm-push-1 col-md-8 col-md-push-2 pt-15 pb-15">...</div>
+        # Сейчас сброс фильтра через переоткрытие страницы по новой, что собственно и сделано по локатору
+
+        filter_state = self.get_filter_usage_state()
+        if filter_state:
+            self.driver.get(self.PAGE_URL)
+        print("The filter has been reset.")
 
     def filter_brand_open(self):
         self.get_filter_brand_btn().click()
@@ -249,11 +285,6 @@ class CatalogPage(BasePage):
             self.driver.back()
             # time.sleep(self.TIMEOUT/2)
         return products_from_product_pages
-
-    def clear_filter(self):
-        # TODO: проверить, что фильтр установлен, если да, то найти Сброс фильтра и его нажать
-        #    проверить, что фильтр сброшен
-        pass
 
     def set_sorting_novelty(self):
         pass
